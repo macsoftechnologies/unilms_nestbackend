@@ -113,7 +113,7 @@ export class SuperAdminService {
       throw new ConflictException(`Tenant with code "${code}" already exists.`);
     }
 
-    const domain = dto.domain || `${code.toLowerCase()}.unilms.com`;
+    const domain = dto.domain || `${code.toLowerCase()}.unilms.in`;
     const planId = Number(dto.planId) || 2;
 
     const plan = await this.prisma.subscriptionPlan.findUnique({

@@ -26,7 +26,7 @@ export class TenantsService {
       include: { plan: true },
     });
 
-    // Subdomain extraction fallback (e.g. ait.unilms.com -> code AIT)
+    // Subdomain extraction fallback (e.g. ait.unilms.in -> code AIT)
     if (!tenant && domain.includes('.')) {
       const sub = domain.split('.')[0].toUpperCase();
       tenant = await this.prisma.tenant.findUnique({

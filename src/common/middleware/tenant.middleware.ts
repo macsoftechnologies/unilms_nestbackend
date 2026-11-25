@@ -10,18 +10,20 @@ export class TenantMiddleware implements NestMiddleware {
     // 1. Resolve from custom header (X-Tenant-Code or X-Tenant-ID)
     const headerCode = (req.headers['x-tenant-code'] as string) || (req.headers['x-tenant-id'] as string);
 
-    // 2. Resolve from subdomain hostname
+    // 2. Resolve from subdomain hostname (e.g. ait.unilms.in -> AIT)
     let hostTenant = null;
-    const host = req.headers.host || '';
+    const rawHost = (req.headers.host || '').split(':')[0].toLowerCase();
     if (
-      !host.startsWith('localhost') &&
-      !host.startsWith('127.0.0.1') &&
-      !host.startsWith('unilms.com') &&
-      !host.startsWith('www.unilms.com')
+      rawHost !== 'localhost' &&
+      rawHost !== '127.0.0.1' &&
+      !rawHost.endsWith('.internal')
     ) {
-      const parts = host.split('.');
+      const parts = rawHost.split('.');
       if (parts.length >= 3) {
-        hostTenant = parts[0].toUpperCase();
+        const sub = parts[0];
+        if (!['www', 'api', 'app', 'superadmin', 'admin', 'stage', 'dev'].includes(sub)) {
+          hostTenant = sub.toUpperCase();
+        }
       }
     }
 
