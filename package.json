@@ -9,10 +9,12 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "ts-node src/main.ts",
     "start:dev": "ts-node src/main.ts",
-    "start:prod": "node dist/main.js",
+    "start:prod": "node dist/src/main.js",
+    "seed:prod": "prisma db seed",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push"
+    "prisma:push": "prisma db push",
+    "prisma:seed": "prisma db seed"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
