@@ -229,7 +229,12 @@ export class CbtService {
   // ==========================================
   async findAllQuizzes(tenantId: string, user?: any) {
     let quizzes = await this.prisma.cbtQuiz.findMany({
-      where: { tenantId },
+      where: {
+        tenantId,
+        NOT: {
+          title: 'Cloud Architecture & Distributed Microservices Assessment',
+        },
+      },
       include: {
         subject: true,
         questions: {
@@ -240,41 +245,7 @@ export class CbtService {
     });
 
     if (quizzes.length === 0) {
-      // Find a default subject (Operating Systems / Cloud Systems / CS)
-      const subject = await this.prisma.subject.findFirst({
-        where: { tenantId },
-      });
-
-      const newQuiz = await this.prisma.cbtQuiz.create({
-        data: {
-          tenantId,
-          subjectId: subject?.id || null,
-          title: 'Cloud Architecture & Distributed Microservices Assessment',
-          description: 'Advanced objective evaluation covering microservice resilience, consensus algorithms, containerization and Kubernetes routing.',
-          durationMinutes: 45,
-          totalMarks: 25.0,
-          passMarks: 10.0,
-          isPublished: true,
-          questions: {
-            create: defaultSeedQuestions.map((q, idx) => ({
-              questionText: q.question_text,
-              optionsJson: JSON.stringify(q.options),
-              correctOption: q.correct_option,
-              points: q.points,
-              explanation: q.explanation,
-              order: idx + 1,
-            })),
-          },
-        },
-        include: {
-          subject: true,
-          questions: {
-            orderBy: { order: 'asc' },
-          },
-        },
-      });
-
-      quizzes = [newQuiz];
+      return [];
     }
 
     const isStudent = (user?.role || '').toUpperCase() === 'STUDENT';
