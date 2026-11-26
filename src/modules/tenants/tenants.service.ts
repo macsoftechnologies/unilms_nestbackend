@@ -135,13 +135,15 @@ export class TenantsService {
   async updateTenant(tenantId: string, dto: any) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException(`Tenant "${tenantId}" not found.`);
+    if (dto.settings) {
+      await this.saveTenantSetting(tenant.id, 'org_contact_details', dto.settings);
+    }
     const updated = await this.prisma.tenant.update({
       where: { id: tenant.id },
       data: {
         ...(dto.name && { name: dto.name }),
         ...(dto.code && { code: dto.code }),
         ...(dto.domain && { domain: dto.domain }),
-        ...(dto.settings && { settings: dto.settings }),
       },
     });
     await this.invalidateTenantCache(updated.code, updated.domain || undefined);
