@@ -32,7 +32,7 @@ export class AuthService {
     }
 
     // 2. Resolve User within Tenant
-    const user = await this.prisma.user.findFirst({
+    let user = await this.prisma.user.findFirst({
       where: {
         tenantId: tenant.id,
         OR: [
@@ -47,6 +47,44 @@ export class AuthService {
         staffProfile: true,
       },
     });
+
+    // Self-healing: if user account does not exist, check if student profile exists without User record
+    if (!user) {
+      const stProfile = await this.prisma.studentProfile.findFirst({
+        where: {
+          tenantId: tenant.id,
+          OR: [
+            { rollNumber: dto.identifier.trim() },
+            { email: dto.identifier.trim().toLowerCase() },
+            { phone: dto.identifier.trim() },
+          ],
+        },
+      });
+
+      if (stProfile) {
+        const passwordHash = await bcrypt.hash('Password@123', 10);
+        user = await this.prisma.user.create({
+          data: {
+            tenantId: tenant.id,
+            role: Role.STUDENT,
+            name: `${stProfile.firstName} ${stProfile.lastName || ''}`.trim(),
+            email: stProfile.email || `${stProfile.rollNumber.toLowerCase()}@campus.edu`,
+            passwordHash,
+            phone: stProfile.phone,
+            rollNumber: stProfile.rollNumber,
+            semester: String(stProfile.currentSemester || 1),
+          },
+          include: {
+            studentProfile: true,
+            staffProfile: true,
+          },
+        });
+        await this.prisma.studentProfile.update({
+          where: { id: stProfile.id },
+          data: { userId: user.id },
+        });
+      }
+    }
 
     if (!user) {
       throw new UnauthorizedException('Invalid user identifier for this institution.');
