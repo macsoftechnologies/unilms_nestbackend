@@ -642,7 +642,7 @@ export class AcademicsService {
 
       const teachingPeriods = periods.filter((p) => !p.isBreak);
       if (teachingPeriods.length > 0 && subject) {
-        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+        const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const slotsToCreate = [];
         for (let i = 0; i < days.length; i++) {
           const day = days[i];

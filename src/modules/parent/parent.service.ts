@@ -574,6 +574,7 @@ export class ParentService {
       })),
       slots: slots.map((s) => ({
         id: s.id,
+        day: s.day,
         dayOfWeek: s.day,
         periodNumber: s.period?.periodNumber || 1,
         periodTime: s.period ? `${s.period.startTime} - ${s.period.endTime}` : '09:00 - 10:00',
