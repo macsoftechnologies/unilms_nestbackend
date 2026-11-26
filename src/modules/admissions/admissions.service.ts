@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as bcrypt from 'bcryptjs';
+import { Role } from '@prisma/client';
 
 @Injectable()
 export class AdmissionsService {
@@ -221,9 +223,36 @@ export class AdmissionsService {
     const firstName = parts[0] || 'Student';
     const lastName = parts.slice(1).join(' ') || null;
 
+    // Automatically provision Auth User account for LMS student app & portal access
+    let userId: string | null = null;
+    try {
+      const passwordHash = await bcrypt.hash(dto?.password || 'Password@123', 10);
+      const studentEmail = dto?.email || app.email || `${rollNumber.toLowerCase()}@campus.edu`;
+      const authUser = await this.prisma.user.create({
+        data: {
+          tenantId,
+          role: Role.STUDENT,
+          name: app.fullName || `${firstName} ${lastName || ''}`.trim(),
+          email: studentEmail,
+          passwordHash,
+          phone: app.phone,
+          rollNumber,
+          program: app.programName || null,
+          semester: '1',
+        },
+      });
+      userId = authUser.id;
+    } catch (err) {
+      const existingUser = await this.prisma.user.findFirst({
+        where: { tenantId, OR: [{ rollNumber }, { email: app.email }] },
+      });
+      if (existingUser) userId = existingUser.id;
+    }
+
     const student = await this.prisma.studentProfile.create({
       data: {
         tenantId,
+        userId,
         rollNumber,
         firstName,
         lastName,
