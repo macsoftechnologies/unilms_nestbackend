@@ -52,6 +52,13 @@ export class ObeController {
     return this.obeService.createPo(this.getTenantId(tenant, user), dto);
   }
 
+  @Post('pos/seed/:programId')
+  @Roles('CAMPUS_ADMIN', 'SUPER_ADMIN', 'FACULTY')
+  @ApiOperation({ summary: 'Auto-seed standard NBA/NAAC Program Outcomes into database' })
+  async seedPos(@CurrentTenant() tenant: Tenant, @CurrentUser() user: any, @Param('programId') programId: string) {
+    return this.obeService.seedStandardPosForProgram(this.getTenantId(tenant, user), programId);
+  }
+
   @Get('matrix/:subjectId')
   @ApiOperation({ summary: 'Get CO-PO Articulation Matrix for a course' })
   async findMatrix(@CurrentTenant() tenant: Tenant, @CurrentUser() user: any, @Param('subjectId') subjectId: string) {

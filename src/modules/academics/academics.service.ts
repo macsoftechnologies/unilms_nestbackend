@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { seedStandardAccessGroups } from '../../common/constants/standard-access-groups';
+import { STANDARD_PROGRAM_OUTCOMES } from '../obe/obe.service';
 
 @Injectable()
 export class AcademicsService {
@@ -82,7 +83,7 @@ export class AcademicsService {
       throw new ConflictException(`Program with code "${code}" already exists.`);
     }
 
-    return this.prisma.program.create({
+    const program = await this.prisma.program.create({
       data: {
         tenantId,
         departmentId: dto.departmentId,
@@ -95,6 +96,25 @@ export class AcademicsService {
       },
       include: { department: true },
     });
+
+    // Auto-seed standard accreditation POs & PSOs into PostgreSQL database for this new program
+    try {
+      const outcomesData = STANDARD_PROGRAM_OUTCOMES.map((po) => ({
+        tenantId,
+        programId: program.id,
+        code: po.code,
+        title: po.title,
+        description: po.description,
+      }));
+      await this.prisma.programOutcome.createMany({
+        data: outcomesData,
+        skipDuplicates: true,
+      });
+    } catch (seedErr) {
+      console.warn('Program standard PO auto-seed note:', seedErr);
+    }
+
+    return program;
   }
 
   async updateProgram(tenantId: string, id: string, dto: any) {
