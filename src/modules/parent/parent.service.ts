@@ -251,7 +251,7 @@ export class ParentService {
       dailyRecords.filter((r) => r.status.toUpperCase() === 'LATE').length +
       periodRecords.filter((r) => r.status.toUpperCase() === 'LATE').length;
 
-    const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 100;
+    const rate = totalSessions > 0 ? Math.round((presentCount / totalSessions) * 100) : 0;
 
     const records = [
       ...dailyRecords.map((r) => ({
@@ -281,6 +281,7 @@ export class ParentService {
         rollNumber: student.rollNumber,
         program: student.program?.name || 'B.Tech CSE',
         cohort: student.cohort?.name || 'Batch 2026-2030',
+        enrolledAt: student.createdAt,
       },
       summary: {
         attendanceRate: rate,
