@@ -354,17 +354,28 @@ export class AdmissionsService {
     ];
 
     return apps.map((app) => {
-      const verifiedDocs = app.documents.filter((d) => d.status === 'Verified');
+      const allDocs = app.documents || [];
+      const verifiedDocs = allDocs.filter((d) => d.status === 'Verified');
       const pendingDocs = standardDocTypes.filter(
-        (type) => !verifiedDocs.some((d) => d.documentType === type),
+        (type) => !allDocs.some((d) => d.documentType === type && d.status === 'Verified'),
       );
 
-      let status = 'Under Review';
-      if (app.documents.some((d) => d.status === 'Action Required' || d.status === 'Rejected')) {
+      let status = 'Pending Upload';
+      if (allDocs.length === 0) {
+        status = (app.status === 'Approved' || app.status === 'Enrolled') ? 'Verified' : 'Pending Upload';
+      } else if (allDocs.some((d) => d.status === 'Action Required' || d.status === 'Rejected')) {
         status = 'Action Required';
-      } else if (verifiedDocs.length >= 4 || app.status === 'Approved' || app.status === 'Enrolled') {
+      } else if (verifiedDocs.length >= standardDocTypes.length || app.status === 'Approved' || app.status === 'Enrolled') {
         status = 'Verified';
+      } else if (verifiedDocs.length > 0) {
+        status = 'Under Review';
+      } else {
+        status = 'Under Review';
       }
+
+      const verifiedCount = (app.status === 'Enrolled' || app.status === 'Approved')
+        ? Math.max(verifiedDocs.length, standardDocTypes.length)
+        : verifiedDocs.length;
 
       return {
         id: app.id,
@@ -376,12 +387,54 @@ export class AdmissionsService {
         program: app.program?.name || app.programName || 'Degree Program',
         category: app.admissionCategory || 'General',
         required_count: standardDocTypes.length,
-        verified_count: verifiedDocs.length || (app.status === 'Enrolled' ? 5 : 3),
-        pending_docs: pendingDocs.slice(0, 2),
+        uploaded_count: allDocs.length,
+        verified_count: verifiedCount,
+        pending_docs: (app.status === 'Enrolled' || app.status === 'Approved')
+          ? []
+          : (allDocs.length === 0 ? ['No documents uploaded yet (All 5 Required)'] : pendingDocs),
         status,
         submitted_date: app.createdAt.toISOString().split('T')[0],
         documents: app.documents,
       };
+    });
+  }
+
+  async uploadDocument(
+    tenantId: string,
+    applicationId: string,
+    dto: { documentType: string; documentName?: string; remarks?: string; status?: string },
+  ) {
+    const app = await this.prisma.application.findFirst({
+      where: { id: applicationId, tenantId },
+    });
+    if (!app) {
+      throw new NotFoundException(`Application #${applicationId} not found.`);
+    }
+
+    const existingDoc = await this.prisma.admissionDocument.findFirst({
+      where: { tenantId, applicationId, documentType: dto.documentType },
+    });
+
+    if (existingDoc) {
+      return this.prisma.admissionDocument.update({
+        where: { id: existingDoc.id },
+        data: {
+          documentName: dto.documentName || existingDoc.documentName,
+          status: dto.status || 'Under Review',
+          remarks: dto.remarks || null,
+        },
+      });
+    }
+
+    return this.prisma.admissionDocument.create({
+      data: {
+        tenantId,
+        applicationId,
+        documentType: dto.documentType,
+        documentName: dto.documentName || `${dto.documentType.replace(/\s+/g, '_')}.pdf`,
+        status: dto.status || 'Under Review',
+        remarks: dto.remarks || null,
+      },
     });
   }
 
@@ -417,12 +470,49 @@ export class AdmissionsService {
             tenantId,
             applicationId,
             documentType: dto.documentType,
+            documentName: `${dto.documentType.replace(/\s+/g, '_')}.pdf`,
             status: dto.status,
             remarks: dto.remarks || null,
             verifiedBy: dto.verifiedBy || 'Admissions Officer',
             verifiedAt: new Date(),
           },
         });
+      }
+    } else if (dto.status === 'Verified') {
+      // Bulk approve all standard documents
+      const standardDocTypes = [
+        '10th Standard Marksheet',
+        '12th / Diploma Certificate',
+        'Transfer Certificate',
+        'Caste / Quota Certificate',
+        'Aadhaar / National ID Proof',
+      ];
+      for (const docType of standardDocTypes) {
+        const existingDoc = await this.prisma.admissionDocument.findFirst({
+          where: { tenantId, applicationId, documentType: docType },
+        });
+        if (existingDoc) {
+          await this.prisma.admissionDocument.update({
+            where: { id: existingDoc.id },
+            data: {
+              status: 'Verified',
+              verifiedBy: dto.verifiedBy || 'Admissions Officer',
+              verifiedAt: new Date(),
+            },
+          });
+        } else {
+          await this.prisma.admissionDocument.create({
+            data: {
+              tenantId,
+              applicationId,
+              documentType: docType,
+              documentName: `${docType.replace(/\s+/g, '_')}_Verified.pdf`,
+              status: 'Verified',
+              verifiedBy: dto.verifiedBy || 'Admissions Officer',
+              verifiedAt: new Date(),
+            },
+          });
+        }
       }
     }
 

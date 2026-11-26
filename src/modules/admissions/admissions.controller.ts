@@ -106,6 +106,16 @@ export class AdmissionsController {
     return this.admissionsService.getDocuments(this.ensureTenant(tenant), query);
   }
 
+  @Post('documents/:applicationId')
+  @ApiOperation({ summary: 'Upload or attach a document for an applicant' })
+  async uploadDocument(
+    @CurrentTenant() tenant: Tenant,
+    @Param('applicationId') applicationId: string,
+    @Body() dto: { documentType: string; documentName?: string; remarks?: string; status?: string },
+  ) {
+    return this.admissionsService.uploadDocument(this.ensureTenant(tenant), applicationId, dto);
+  }
+
   @Patch('documents/:id')
   @ApiOperation({ summary: 'Update candidate document verification status' })
   async updateDocumentVerification(
