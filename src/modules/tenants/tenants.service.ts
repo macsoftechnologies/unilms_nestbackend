@@ -114,6 +114,7 @@ export class TenantsService {
         cmsEnabled: true,
         lmsEnabled: true,
         obeEnabled: true,
+        adminEmail: true,
       },
     });
 
@@ -121,8 +122,20 @@ export class TenantsService {
       throw new NotFoundException(`Branding not found for tenant "${tenantCodeOrId}"`);
     }
 
-    await this.redis.set(cacheKey, tenant, 1800); // 30 min cache
-    return tenant;
+    const collegeDetails: any = await this.getTenantSetting(tenant.id, 'org_college_details');
+
+    const result = {
+      ...tenant,
+      affiliation: collegeDetails?.affiliation || '',
+      naacGrade: collegeDetails?.naac_grade || collegeDetails?.naacGrade || '',
+      contactEmail: collegeDetails?.contact_email || tenant.adminEmail || '',
+      contactPhone: collegeDetails?.contact_phone || '',
+      address: collegeDetails?.address || '',
+      logoUrl: tenant.logoUrl || collegeDetails?.logo_url || null,
+    };
+
+    await this.redis.set(cacheKey, result, 1800); // 30 min cache
+    return result;
   }
 
   async invalidateTenantCache(tenantCodeOrId: string, domain?: string) {
@@ -135,19 +148,41 @@ export class TenantsService {
   async updateTenant(tenantId: string, dto: any) {
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     if (!tenant) throw new NotFoundException(`Tenant "${tenantId}" not found.`);
-    if (dto.settings) {
-      await this.saveTenantSetting(tenant.id, 'org_contact_details', dto.settings);
+
+    const updateData: any = {};
+    if (dto.name) updateData.name = dto.name;
+    if (dto.code) updateData.code = dto.code;
+    if (dto.domain) updateData.domain = dto.domain;
+    if (dto.logo_url || dto.logoUrl) updateData.logoUrl = dto.logo_url || dto.logoUrl;
+    if (dto.contact_email || dto.contactEmail || dto.adminEmail) {
+      updateData.adminEmail = dto.contact_email || dto.contactEmail || dto.adminEmail;
     }
-    const updated = await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: {
-        ...(dto.name && { name: dto.name }),
-        ...(dto.code && { code: dto.code }),
-        ...(dto.domain && { domain: dto.domain }),
-      },
-    });
+
+    const updated = Object.keys(updateData).length > 0
+      ? await this.prisma.tenant.update({
+          where: { id: tenant.id },
+          data: updateData,
+        })
+      : tenant;
+
+    const collegeDetails = {
+      name: dto.name || tenant.name,
+      affiliation: dto.affiliation || '',
+      naac_grade: dto.naac_grade || dto.naacGrade || '',
+      contact_email: dto.contact_email || dto.contactEmail || dto.adminEmail || tenant.adminEmail || '',
+      contact_phone: dto.contact_phone || dto.contactPhone || '',
+      address: dto.address || '',
+      logo_url: dto.logo_url || dto.logoUrl || tenant.logoUrl || '',
+    };
+
+    await this.saveTenantSetting(tenant.id, 'org_college_details', collegeDetails);
+    await this.saveTenantSetting(tenant.id, 'org_contact_details', collegeDetails);
+
     await this.invalidateTenantCache(updated.code, updated.domain || undefined);
-    return updated;
+    return {
+      ...updated,
+      ...collegeDetails,
+    };
   }
 
   async getTenantSetting(tenantId: string, key: string) {
