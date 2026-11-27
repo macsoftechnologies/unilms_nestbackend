@@ -100,23 +100,34 @@ export class ObeService {
     const where: any = { tenantId };
     if (targetProgramId) where.programId = targetProgramId;
 
-    return this.prisma.programOutcome.findMany({
+    const outcomes = await this.prisma.programOutcome.findMany({
       where,
-      orderBy: { code: 'asc' },
       include: {
         program: { select: { id: true, name: true, code: true } },
       },
+    });
+
+    return outcomes.map(o => ({
+      ...o,
+      type: o.code.toUpperCase().startsWith('PSO') ? 'PSO' : 'PO'
+    })).sort((a, b) => {
+      const aPrefix = a.code.toUpperCase().startsWith('PSO') ? 'PSO' : 'PO';
+      const bPrefix = b.code.toUpperCase().startsWith('PSO') ? 'PSO' : 'PO';
+      if (aPrefix !== bPrefix) return aPrefix === 'PO' ? -1 : 1;
+      const aNum = parseInt(a.code.replace(/\D/g, ''), 10) || 0;
+      const bNum = parseInt(b.code.replace(/\D/g, ''), 10) || 0;
+      return aNum - bNum;
     });
   }
 
   async createPo(tenantId: string, dto: {
     programId: string;
     code: string;
-    title: string;
+    title?: string;
     description: string;
   }) {
-    if (!dto.programId || !dto.code || !dto.title) {
-      throw new BadRequestException('Program, PO code, and title are required.');
+    if (!dto.programId || !dto.code) {
+      throw new BadRequestException('Program and PO code are required.');
     }
 
     return this.prisma.programOutcome.create({
@@ -124,8 +135,8 @@ export class ObeService {
         tenantId,
         programId: dto.programId,
         code: dto.code.toUpperCase().trim(),
-        title: dto.title.trim(),
-        description: dto.description || dto.title,
+        title: (dto.title || dto.description || dto.code).slice(0, 255),
+        description: dto.description || dto.title || dto.code,
       },
       include: { program: true },
     });
