@@ -518,10 +518,32 @@ export class AcademicsService {
 
   // --- SUBJECTS ---
   async getSubjects(tenantId: string) {
-    return this.prisma.subject.findMany({
+    const subs = await this.prisma.subject.findMany({
       where: { tenantId },
       include: { department: true },
       orderBy: { code: 'asc' },
+    });
+
+    const settingKey = `subject_adv_${tenantId}`;
+    let advMap: Record<string, any> = {};
+    try {
+      const existingSetting = await this.prisma.platformSetting.findUnique({ where: { key: settingKey } });
+      if (existingSetting && typeof existingSetting.value === 'object' && existingSetting.value !== null) {
+        advMap = existingSetting.value as Record<string, any>;
+      }
+    } catch {}
+
+    return subs.map((s) => {
+      const adv = advMap[s.id] || {};
+      return {
+        ...s,
+        units: adv.units !== undefined ? adv.units : 5,
+        outcomes: adv.outcomes !== undefined ? adv.outcomes : 6,
+        internalMax: adv.internalMax !== undefined ? adv.internalMax : 40,
+        internalPass: adv.internalPass !== undefined ? adv.internalPass : 16,
+        externalMax: adv.externalMax !== undefined ? adv.externalMax : 60,
+        externalPass: adv.externalPass !== undefined ? adv.externalPass : 24,
+      };
     });
   }
 
@@ -534,7 +556,7 @@ export class AcademicsService {
       throw new ConflictException(`Subject with code "${code}" already exists in this institution.`);
     }
 
-    return this.prisma.subject.create({
+    const created = await this.prisma.subject.create({
       data: {
         tenantId,
         departmentId: dto.departmentId || null,
@@ -548,19 +570,76 @@ export class AcademicsService {
       },
       include: { department: true },
     });
+
+    // Save advanced syllabus settings
+    if (dto.units !== undefined || dto.outcomes !== undefined || dto.internalMax !== undefined) {
+      const settingKey = `subject_adv_${tenantId}`;
+      let advMap: Record<string, any> = {};
+      try {
+        const existingSetting = await this.prisma.platformSetting.findUnique({ where: { key: settingKey } });
+        if (existingSetting && typeof existingSetting.value === 'object' && existingSetting.value !== null) {
+          advMap = existingSetting.value as Record<string, any>;
+        }
+      } catch {}
+
+      advMap[created.id] = {
+        units: dto.units !== undefined ? Number(dto.units) : 5,
+        outcomes: dto.outcomes !== undefined ? Number(dto.outcomes) : 6,
+        internalMax: dto.internalMax !== undefined ? Number(dto.internalMax) : 40,
+        internalPass: dto.internalPass !== undefined ? Number(dto.internalPass) : 16,
+        externalMax: dto.externalMax !== undefined ? Number(dto.externalMax) : 60,
+        externalPass: dto.externalPass !== undefined ? Number(dto.externalPass) : 24,
+      };
+
+      await this.prisma.platformSetting.upsert({
+        where: { key: settingKey },
+        create: { key: settingKey, value: advMap },
+        update: { value: advMap },
+      });
+    }
+
+    return created;
   }
 
   async updateSubject(tenantId: string, id: string, dto: any) {
     const sub = await this.prisma.subject.findFirst({ where: { id, tenantId } });
     if (!sub) throw new NotFoundException(`Subject not found.`);
+
+    // Persist advanced syllabus & marks settings into platform setting store
+    const settingKey = `subject_adv_${tenantId}`;
+    let advMap: Record<string, any> = {};
+    try {
+      const existingSetting = await this.prisma.platformSetting.findUnique({ where: { key: settingKey } });
+      if (existingSetting && typeof existingSetting.value === 'object' && existingSetting.value !== null) {
+        advMap = existingSetting.value as Record<string, any>;
+      }
+    } catch {}
+
+    advMap[id] = {
+      units: dto.units !== undefined ? Number(dto.units) : (advMap[id]?.units ?? 5),
+      outcomes: dto.outcomes !== undefined ? Number(dto.outcomes) : (advMap[id]?.outcomes ?? 6),
+      internalMax: dto.internalMax !== undefined ? Number(dto.internalMax) : (advMap[id]?.internalMax ?? 40),
+      internalPass: dto.internalPass !== undefined ? Number(dto.internalPass) : (advMap[id]?.internalPass ?? 16),
+      externalMax: dto.externalMax !== undefined ? Number(dto.externalMax) : (advMap[id]?.externalMax ?? 60),
+      externalPass: dto.externalPass !== undefined ? Number(dto.externalPass) : (advMap[id]?.externalPass ?? 24),
+    };
+
+    await this.prisma.platformSetting.upsert({
+      where: { key: settingKey },
+      create: { key: settingKey, value: advMap },
+      update: { value: advMap },
+    });
+
     return this.prisma.subject.update({
       where: { id },
       data: {
         departmentId: dto.departmentId || sub.departmentId,
         code: dto.code ? dto.code.toUpperCase().trim() : sub.code,
         name: dto.name || sub.name,
+        shortName: dto.shortName !== undefined ? dto.shortName : sub.shortName,
         credits: dto.credits ? Number(dto.credits) : sub.credits,
         type: dto.type || sub.type,
+        sessions: dto.sessions !== undefined ? Number(dto.sessions) : sub.sessions,
       },
       include: { department: true },
     });
