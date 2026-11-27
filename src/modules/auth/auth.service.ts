@@ -574,6 +574,15 @@ export class AuthService {
     if (!existing) {
       throw new NotFoundException('User not found within your institution.');
     }
+
+    // Clean up associated access group settings and linked staff profile
+    await this.prisma.platformSetting.deleteMany({
+      where: { key: `${tenantId}:user_access_group:${id}` },
+    });
+    await this.prisma.staffProfile.deleteMany({
+      where: { userId: id },
+    });
+
     return this.prisma.user.delete({
       where: { id },
     });
