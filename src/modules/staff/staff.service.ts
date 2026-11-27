@@ -103,6 +103,17 @@ export class StaffService {
       throw new ConflictException(`Staff member with Employee Code '${employeeCode}' already exists.`);
     }
 
+    const existingEmail = await this.prisma.staffProfile.findFirst({
+      where: {
+        tenantId,
+        email: email.toLowerCase(),
+      },
+    });
+
+    if (existingEmail) {
+      throw new ConflictException(`Staff member with Official Email '${email}' already exists in your organization (${existingEmail.firstName} ${existingEmail.lastName || ''} - ${existingEmail.employeeCode}).`);
+    }
+
     // Provision auth user only if explicitly requested; HR onboarding defaults to profile-only
     let userId: string | null = null;
     if (dto.createAuthAccount === true) {
@@ -196,6 +207,19 @@ export class StaffService {
 
     if (!existing) {
       throw new NotFoundException(`Staff member #${id} not found.`);
+    }
+
+    if (dto.email && dto.email.toLowerCase() !== existing.email.toLowerCase()) {
+      const emailConflict = await this.prisma.staffProfile.findFirst({
+        where: {
+          tenantId,
+          email: dto.email.toLowerCase(),
+          id: { not: id },
+        },
+      });
+      if (emailConflict) {
+        throw new ConflictException(`Official Email '${dto.email}' is already registered to another staff member (${emailConflict.firstName} ${emailConflict.lastName || ''} - ${emailConflict.employeeCode}).`);
+      }
     }
 
     return this.prisma.staffProfile.update({
