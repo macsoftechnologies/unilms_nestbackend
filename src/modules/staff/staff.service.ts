@@ -134,6 +134,28 @@ export class StaffService {
             },
           });
           userId = user.id;
+
+          // Automatically assign standard Access Group based on Staff Type & Designation
+          let defaultGroup = 'Faculty / Teaching Staff';
+          if (dto.staffType === 'Administrative' || dto.staffType === 'Non-Teaching') {
+            const des = (designation || '').toLowerCase();
+            if (des.includes('hr')) defaultGroup = 'HR Operations Executive';
+            else if (des.includes('account') || des.includes('fee')) defaultGroup = 'Accounts Officer / Fee Cashier';
+            else if (des.includes('admiss')) defaultGroup = 'Admissions Counselor';
+            else if (des.includes('exam')) defaultGroup = 'Examinations Assistant';
+            else if (des.includes('hostel') || des.includes('warden')) defaultGroup = 'Hostel Warden';
+            else if (des.includes('transport')) defaultGroup = 'Transport Supervisor';
+            else if (des.includes('librar')) defaultGroup = 'Librarian / Library Assistant';
+            else if (des.includes('placement')) defaultGroup = 'Training & Placement Officer (TPO)';
+            else defaultGroup = 'Front Office / Reception Desk';
+          }
+
+          const settingKey = `${tenantId}:user_access_group:${user.id}`;
+          await this.prisma.platformSetting.upsert({
+            where: { key: settingKey },
+            create: { key: settingKey, value: [defaultGroup] },
+            update: { value: [defaultGroup] },
+          });
         }
       } catch (e) {
         // Fallback: Continue profile creation even if auth record creation hit conflict
