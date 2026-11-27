@@ -170,6 +170,21 @@ export class ObeService {
     }
 
     if (targetProgramId) {
+      const prog = await this.prisma.program.findFirst({
+        where: { id: targetProgramId, tenantId },
+        include: { department: true },
+      });
+      if (prog) {
+        const isManagement = /MBA|PGDM|MANAGEMENT|BBA|BUSINESS/i.test(`${prog.code} ${prog.name} ${prog.department?.name || ''}`);
+        if (isManagement) {
+          const hasEngineeringSeed = await this.prisma.programOutcome.findFirst({
+            where: { tenantId, programId: targetProgramId, title: 'Engineering Knowledge' },
+          });
+          if (hasEngineeringSeed) {
+            await this.seedStandardPosForProgram(tenantId, targetProgramId, true);
+          }
+        }
+      }
       await this.seedStandardPosForProgram(tenantId, targetProgramId);
     }
 

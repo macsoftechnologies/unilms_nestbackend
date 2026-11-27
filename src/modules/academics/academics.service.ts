@@ -64,7 +64,7 @@ export class AcademicsService {
 
   // --- PROGRAMS ---
   async getPrograms(tenantId: string) {
-    return this.prisma.program.findMany({
+    const programs = await this.prisma.program.findMany({
       where: { tenantId },
       include: {
         department: true,
@@ -75,6 +75,37 @@ export class AcademicsService {
       },
       orderBy: { code: 'asc' },
     });
+
+    // Auto-heal any mismatched outcomes (e.g. MBA seeded with Engineering outcomes from initial template)
+    for (const prog of programs) {
+      const isManagement = /MBA|PGDM|MANAGEMENT|BBA|BUSINESS/i.test(`${prog.code} ${prog.name} ${prog.department?.name || ''}`);
+      if (isManagement && prog.programOutcomes.some(po => po.title === 'Engineering Knowledge' || po.code === 'PO12')) {
+        try {
+          await this.prisma.programOutcome.deleteMany({
+            where: { tenantId, programId: prog.id },
+          });
+          const template = getStandardOutcomesForProgram(prog);
+          await this.prisma.programOutcome.createMany({
+            data: template.map(po => ({
+              tenantId,
+              programId: prog.id,
+              code: po.code,
+              title: po.title,
+              description: po.description,
+            })),
+            skipDuplicates: true,
+          });
+          prog.programOutcomes = await this.prisma.programOutcome.findMany({
+            where: { tenantId, programId: prog.id },
+            orderBy: { code: 'asc' },
+          });
+        } catch (e) {
+          console.warn('Program outcome auto-heal note:', e);
+        }
+      }
+    }
+
+    return programs;
   }
 
   async createProgram(tenantId: string, dto: any) {
