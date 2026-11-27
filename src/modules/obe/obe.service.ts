@@ -142,6 +142,37 @@ export class ObeService {
     });
   }
 
+  async updatePo(tenantId: string, id: string, dto: {
+    code?: string;
+    title?: string;
+    description?: string;
+  }) {
+    const existing = await this.prisma.programOutcome.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Program outcome not found in this institution.');
+
+    return this.prisma.programOutcome.update({
+      where: { id },
+      data: {
+        code: dto.code ? dto.code.toUpperCase().trim() : undefined,
+        title: dto.title ? dto.title.trim() : (dto.code ? dto.code.toUpperCase().trim() : undefined),
+        description: dto.description ? dto.description.trim() : undefined,
+      },
+      include: { program: true },
+    });
+  }
+
+  async deletePo(tenantId: string, id: string) {
+    const existing = await this.prisma.programOutcome.findFirst({
+      where: { id, tenantId },
+    });
+    if (!existing) throw new NotFoundException('Program outcome not found in this institution.');
+
+    await this.prisma.programOutcome.delete({ where: { id } });
+    return { success: true, message: `Program outcome ${existing.code} deleted successfully.` };
+  }
+
   async findCoPoMatrix(tenantId: string, subjectId: string) {
     const cos = await this.prisma.courseOutcome.findMany({
       where: { tenantId, subjectId },

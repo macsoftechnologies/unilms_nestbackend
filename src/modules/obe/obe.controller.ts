@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -50,6 +52,29 @@ export class ObeController {
   @ApiOperation({ summary: 'Define new Program Outcome' })
   async createPo(@CurrentTenant() tenant: Tenant, @CurrentUser() user: any, @Body() dto: any) {
     return this.obeService.createPo(this.getTenantId(tenant, user), dto);
+  }
+
+  @Put('pos/:id')
+  @Roles('CAMPUS_ADMIN', 'SUPER_ADMIN', 'FACULTY')
+  @ApiOperation({ summary: 'Update Program Outcome' })
+  async updatePo(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() dto: any,
+  ) {
+    return this.obeService.updatePo(this.getTenantId(tenant, user), id, dto);
+  }
+
+  @Delete('pos/:id')
+  @Roles('CAMPUS_ADMIN', 'SUPER_ADMIN', 'FACULTY')
+  @ApiOperation({ summary: 'Delete Program Outcome' })
+  async deletePo(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+  ) {
+    return this.obeService.deletePo(this.getTenantId(tenant, user), id);
   }
 
   @Post('pos/seed/:programId')
