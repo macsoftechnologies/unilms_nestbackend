@@ -225,10 +225,26 @@ export class AcademicsService {
 
   // --- SEMESTERS ---
   async getSemesters(tenantId: string) {
-    return this.prisma.semester.findMany({
+    let sems = await this.prisma.semester.findMany({
       where: { tenantId },
       orderBy: { sequence: 'asc' },
     });
+    if (sems.length === 0) {
+      const defaultSems = Array.from({ length: 12 }, (_, i) => ({
+        tenantId,
+        sequence: i + 1,
+        name: `Semester ${i + 1}`,
+      }));
+      await this.prisma.semester.createMany({
+        data: defaultSems,
+        skipDuplicates: true,
+      });
+      sems = await this.prisma.semester.findMany({
+        where: { tenantId },
+        orderBy: { sequence: 'asc' },
+      });
+    }
+    return sems;
   }
 
   async createSemester(tenantId: string, dto: any) {
