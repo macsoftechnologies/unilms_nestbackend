@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { json, urlencoded } from 'express';
 
 // Ensure BigInt (e.g. ActivityLog ID) serializes cleanly to JSON string
 (BigInt.prototype as any).toJSON = function () {
@@ -12,6 +13,10 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Increase payload size limit to support base64 logos and institutional assets
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // CORS Configuration: Dynamic whitelist supporting development, production domains, and env overrides
   const envAllowed = process.env.ALLOWED_ORIGINS
