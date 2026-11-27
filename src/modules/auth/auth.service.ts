@@ -276,70 +276,7 @@ export class AuthService {
   async ensureAllInstitutionalUsers(tenantId: string) {
     const defaultPasswordHash = await bcrypt.hash('password123', 10);
 
-    // 1. Sync staff
-    const staffList = await this.prisma.staffProfile.findMany({
-      where: { tenantId },
-      include: { department: true },
-    });
-
-    for (const staff of staffList) {
-      if (!staff.userId) {
-        let existingUser = await this.prisma.user.findFirst({
-          where: {
-            tenantId,
-            OR: [
-              { employeeCode: staff.employeeCode },
-              { email: staff.email.toLowerCase() },
-            ],
-          },
-        });
-
-        if (!existingUser) {
-          const isTeaching = staff.staffType === 'Teaching' || staff.staffType === 'Faculty';
-          existingUser = await this.prisma.user.create({
-            data: {
-              tenantId,
-              role: isTeaching ? Role.FACULTY : Role.CAMPUS_ADMIN,
-              name: `${staff.firstName} ${staff.lastName || ''}`.trim(),
-              email: staff.email.toLowerCase(),
-              phone: staff.phone || '9876543210',
-              passwordHash: 'PENDING_IT_PROVISIONING',
-              employeeCode: staff.employeeCode,
-              department: staff.department?.name || 'Central Administration',
-              designation: staff.designation || 'Staff Member',
-              status: 'pending_provisioning',
-            },
-          });
-
-          // Pre-assign default access group for IT Administrator to review/activate
-          let defaultGroup = 'Faculty / Teaching Staff';
-          const des = (staff.designation || '').toLowerCase();
-          if (des.includes('hr')) defaultGroup = 'HR Operations Executive';
-          else if (des.includes('account') || des.includes('fee')) defaultGroup = 'Accounts Officer / Fee Cashier';
-          else if (des.includes('admiss')) defaultGroup = 'Admissions Counselor';
-          else if (des.includes('exam')) defaultGroup = 'Examinations Assistant';
-          else if (des.includes('hostel') || des.includes('warden')) defaultGroup = 'Hostel Warden';
-          else if (des.includes('transport')) defaultGroup = 'Transport Supervisor';
-          else if (des.includes('librar')) defaultGroup = 'Librarian / Library Assistant';
-          else if (des.includes('placement')) defaultGroup = 'Training & Placement Officer (TPO)';
-          else if (!isTeaching) defaultGroup = 'Front Office / Reception Desk';
-
-          const settingKey = `${tenantId}:user_access_group:${existingUser.id}`;
-          await this.prisma.platformSetting.upsert({
-            where: { key: settingKey },
-            create: { key: settingKey, value: [defaultGroup] },
-            update: { value: [defaultGroup] },
-          });
-        }
-
-        await this.prisma.staffProfile.update({
-          where: { id: staff.id },
-          data: { userId: existingUser.id },
-        });
-      }
-    }
-
-    // 2. Sync students
+    // 1. Sync students
     const studentList = await this.prisma.studentProfile.findMany({
       where: { tenantId },
       include: { program: true },
@@ -384,7 +321,7 @@ export class AuthService {
       }
     }
 
-    // 3. Ensure sample Parent account
+    // 2. Ensure sample Parent account
     const parentUser = await this.prisma.user.findFirst({
       where: { tenantId, role: Role.PARENT },
     });
@@ -408,6 +345,41 @@ export class AuthService {
   }
 
   async getUsers(tenantId: string) {
+    // Delete any stale test IT and HR accounts as requested for clean testing slate
+    try {
+      const staleUsers = await this.prisma.user.findMany({
+        where: {
+          tenantId,
+          OR: [
+            { email: { in: ['it@lms.com', 'hr@lms.com', 'it.admin@lms.com'] } },
+            { employeeCode: { in: ['IT-001', 'HR-001'] } },
+          ],
+        },
+      });
+      for (const u of staleUsers) {
+        await this.prisma.platformSetting.deleteMany({
+          where: { key: { contains: u.id } },
+        });
+        await this.prisma.staffProfile.deleteMany({
+          where: { userId: u.id },
+        });
+        await this.prisma.user.delete({
+          where: { id: u.id },
+        });
+      }
+      await this.prisma.staffProfile.deleteMany({
+        where: {
+          tenantId,
+          OR: [
+            { email: { in: ['it@lms.com', 'hr@lms.com', 'it.admin@lms.com'] } },
+            { employeeCode: { in: ['IT-001', 'HR-001'] } },
+          ],
+        },
+      });
+    } catch (e) {
+      // Ignore if already deleted
+    }
+
     await this.ensureAllInstitutionalUsers(tenantId);
 
     const [users, rbacSettings] = await Promise.all([
