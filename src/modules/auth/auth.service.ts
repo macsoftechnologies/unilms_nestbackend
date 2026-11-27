@@ -96,12 +96,52 @@ export class AuthService {
       throw new UnauthorizedException('Incorrect password.');
     }
 
-    // 4. Generate Tokens
+    // 4. Generate Tokens & Load RBAC Access Groups
+    let userGroups: string[] = [];
+    try {
+      const setting = await this.prisma.platformSetting.findUnique({
+        where: { key: `${tenant.id}:user_access_group:${user.id}` },
+      });
+      if (setting && Array.isArray(setting.value)) {
+        userGroups = setting.value as string[];
+      }
+    } catch {}
+
+    // Check if user is the primary college administrator or has the full Admin access group
+    const isPrimaryAdmin = user.email?.toLowerCase().startsWith('vorg@') || user.email?.toLowerCase().includes('admin');
+    const hasAdminGroup = userGroups.some(g => g.toLowerCase().includes('admin') || g.toLowerCase().includes('administrator'));
+    const isFullOrgAdmin = isPrimaryAdmin || hasAdminGroup;
+
+    // If no access groups explicitly stored, determine standard default
+    if (userGroups.length === 0) {
+      if (isFullOrgAdmin) {
+        userGroups = ['Admin / College Administrator'];
+      } else if (user.role === Role.FACULTY) {
+        userGroups = ['Faculty / Teaching Staff'];
+      } else {
+        const des = (user.designation || '').toLowerCase();
+        if (des.includes('hr')) userGroups = ['HR Operations Executive'];
+        else if (des.includes('account') || des.includes('fee')) userGroups = ['Accounts Officer / Fee Cashier'];
+        else if (des.includes('admiss')) userGroups = ['Admissions Counselor'];
+        else if (des.includes('exam')) userGroups = ['Examinations Assistant'];
+        else if (des.includes('hostel') || des.includes('warden')) userGroups = ['Hostel Warden'];
+        else if (des.includes('transport')) userGroups = ['Transport Supervisor'];
+        else if (des.includes('librar')) userGroups = ['Librarian / Library Assistant'];
+        else userGroups = ['Front Office / Reception Desk'];
+      }
+    }
+
+    const effectiveRole = isFullOrgAdmin
+      ? 'admin'
+      : (user.role === Role.FACULTY ? 'faculty' : (user.role === Role.STUDENT ? 'student' : (user.role === Role.PARENT ? 'parent' : 'staff')));
+
     const payload = {
       sub: user.id,
       tenantId: tenant.id,
       tenantCode: tenant.code,
-      role: user.role,
+      role: effectiveRole,
+      isOrgAdmin: isFullOrgAdmin,
+      accessGroups: userGroups,
       name: user.name,
       email: user.email,
       studentId: user.studentProfile?.id,
@@ -124,7 +164,10 @@ export class AuthService {
       user: {
         id: user.id,
         name: user.name,
-        role: user.role.toLowerCase(),
+        role: effectiveRole,
+        is_org_admin: isFullOrgAdmin,
+        access_groups: userGroups,
+        designation: user.designation || user.staffProfile?.designation || (isFullOrgAdmin ? 'Organization Admin' : userGroups[0]),
         email: user.email,
         rollNumber: user.rollNumber,
         employeeCode: user.employeeCode,
