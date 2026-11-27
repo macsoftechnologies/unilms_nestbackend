@@ -103,9 +103,9 @@ export class StaffService {
       throw new ConflictException(`Staff member with Employee Code '${employeeCode}' already exists.`);
     }
 
-    // Single-Door Provisioning: Automatically create or link User record for platform login
+    // Provision auth user only if explicitly requested; HR onboarding defaults to profile-only
     let userId: string | null = null;
-    if (dto.createAuthAccount !== false) {
+    if (dto.createAuthAccount === true) {
       try {
         const passwordHash = await bcrypt.hash(dto.password || 'password123', 10);
         let userRole: Role = Role.FACULTY;

@@ -90,7 +90,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid user identifier for this institution.');
     }
 
-    // 3. Verify Password
+    // 3. Verify Password & Provisioning State
+    if (!user.passwordHash || user.passwordHash === 'PENDING_IT_PROVISIONING' || user.status === 'pending_provisioning') {
+      throw new UnauthorizedException('Account not yet provisioned with portal credentials by the IT Administrator. Please contact IT Helpdesk.');
+    }
+
     const isValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValid) {
       throw new UnauthorizedException('Incorrect password.');
@@ -108,8 +112,11 @@ export class AuthService {
     } catch {}
 
     // Check if user is the primary college administrator or has the full Admin access group
-    const isPrimaryAdmin = user.email?.toLowerCase().startsWith('vorg@') || user.email?.toLowerCase().includes('admin');
-    const hasAdminGroup = userGroups.some(g => g.toLowerCase().includes('admin') || g.toLowerCase().includes('administrator'));
+    const isPrimaryAdmin = user.email?.toLowerCase().startsWith('vorg@');
+    const hasAdminGroup = userGroups.some(g => {
+      const str = (typeof g === 'string' ? g : '').toLowerCase();
+      return str.includes('admin') || str.includes('administrator');
+    });
     const isFullOrgAdmin = isPrimaryAdmin || hasAdminGroup;
 
     // If no access groups explicitly stored, determine standard default
@@ -287,19 +294,40 @@ export class AuthService {
         });
 
         if (!existingUser) {
+          const isTeaching = staff.staffType === 'Teaching' || staff.staffType === 'Faculty';
           existingUser = await this.prisma.user.create({
             data: {
               tenantId,
-              role: Role.FACULTY,
+              role: isTeaching ? Role.FACULTY : Role.CAMPUS_ADMIN,
               name: `${staff.firstName} ${staff.lastName || ''}`.trim(),
               email: staff.email.toLowerCase(),
               phone: staff.phone || '9876543210',
-              passwordHash: defaultPasswordHash,
+              passwordHash: 'PENDING_IT_PROVISIONING',
               employeeCode: staff.employeeCode,
-              department: staff.department?.name || 'Department of Engineering',
-              designation: staff.designation || 'Faculty Member',
-              status: 'active',
+              department: staff.department?.name || 'Central Administration',
+              designation: staff.designation || 'Staff Member',
+              status: 'pending_provisioning',
             },
+          });
+
+          // Pre-assign default access group for IT Administrator to review/activate
+          let defaultGroup = 'Faculty / Teaching Staff';
+          const des = (staff.designation || '').toLowerCase();
+          if (des.includes('hr')) defaultGroup = 'HR Operations Executive';
+          else if (des.includes('account') || des.includes('fee')) defaultGroup = 'Accounts Officer / Fee Cashier';
+          else if (des.includes('admiss')) defaultGroup = 'Admissions Counselor';
+          else if (des.includes('exam')) defaultGroup = 'Examinations Assistant';
+          else if (des.includes('hostel') || des.includes('warden')) defaultGroup = 'Hostel Warden';
+          else if (des.includes('transport')) defaultGroup = 'Transport Supervisor';
+          else if (des.includes('librar')) defaultGroup = 'Librarian / Library Assistant';
+          else if (des.includes('placement')) defaultGroup = 'Training & Placement Officer (TPO)';
+          else if (!isTeaching) defaultGroup = 'Front Office / Reception Desk';
+
+          const settingKey = `${tenantId}:user_access_group:${existingUser.id}`;
+          await this.prisma.platformSetting.upsert({
+            where: { key: settingKey },
+            create: { key: settingKey, value: [defaultGroup] },
+            update: { value: [defaultGroup] },
           });
         }
 
@@ -376,6 +404,47 @@ export class AuthService {
         },
       });
     }
+
+    // 4. Ensure IT Administrator user exists
+    const itUser = await this.prisma.user.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { email: 'it@lms.com' },
+          { email: 'it.admin@lms.com' },
+          { employeeCode: 'IT-001' },
+        ],
+      },
+    });
+
+    if (!itUser) {
+      const itHash = await bcrypt.hash('password123', 10);
+      const newItUser = await this.prisma.user.create({
+        data: {
+          tenantId,
+          role: Role.CAMPUS_ADMIN,
+          name: 'Kiran Kumar (IT Admin)',
+          email: 'it@lms.com',
+          phone: '9845099880',
+          passwordHash: itHash,
+          employeeCode: 'IT-001',
+          designation: 'IT Systems Administrator',
+          status: 'active',
+        },
+      });
+
+      const settingKey = `${tenantId}:user_access_group:${newItUser.id}`;
+      await this.prisma.platformSetting.upsert({
+        where: { key: settingKey },
+        create: {
+          key: settingKey,
+          value: ['Admin / College Administrator', 'System Settings & Security'],
+        },
+        update: {
+          value: ['Admin / College Administrator', 'System Settings & Security'],
+        },
+      });
+    }
   }
 
   async getUsers(tenantId: string) {
@@ -446,7 +515,7 @@ export class AuthService {
         role: roleLower,
         is_org_admin: roleLower === 'admin' ? 1 : 0,
         access_groups: groups,
-        status: u.status || 'active',
+        status: (u.passwordHash === 'PENDING_IT_PROVISIONING' || u.status === 'pending_provisioning') ? 'pending_provisioning' : (u.status || 'active'),
         created_at: u.createdAt,
       };
     });
@@ -506,8 +575,18 @@ export class AuthService {
       updateData.employeeCode = data.employee_code;
       if (data.role === 'student') updateData.rollNumber = data.employee_code;
     }
-    if (data.password) {
+    if (data.role) {
+      let r: Role = Role.FACULTY;
+      const roleStr = data.role.toLowerCase();
+      if (roleStr === 'admin') r = Role.CAMPUS_ADMIN;
+      else if (roleStr === 'staff') r = Role.CAMPUS_ADMIN;
+      else if (roleStr === 'student') r = Role.STUDENT;
+      else if (roleStr === 'parent') r = Role.PARENT;
+      updateData.role = r;
+    }
+    if (data.password && data.password.trim().length > 0) {
       updateData.passwordHash = await bcrypt.hash(data.password, 10);
+      updateData.status = 'active';
     }
 
     if (data.access_groups && Array.isArray(data.access_groups)) {
