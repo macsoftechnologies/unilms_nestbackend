@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { seedStandardAccessGroups } from '../../common/constants/standard-access-groups';
-import { STANDARD_PROGRAM_OUTCOMES } from '../obe/obe.service';
+import { STANDARD_PROGRAM_OUTCOMES, getStandardOutcomesForProgram } from '../obe/obe.service';
 
 @Injectable()
 export class AcademicsService {
@@ -100,9 +100,10 @@ export class AcademicsService {
       include: { department: true },
     });
 
-    // Auto-seed standard accreditation POs & PSOs into PostgreSQL database for this new program
+    // Auto-seed discipline-specific standard accreditation POs & PSOs into database for this new program
     try {
-      const outcomesData = STANDARD_PROGRAM_OUTCOMES.map((po) => ({
+      const template = getStandardOutcomesForProgram(program);
+      const outcomesData = template.map((po) => ({
         tenantId,
         programId: program.id,
         code: po.code,

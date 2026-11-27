@@ -80,8 +80,17 @@ export class ObeController {
   @Post('pos/seed/:programId')
   @Roles('CAMPUS_ADMIN', 'SUPER_ADMIN', 'FACULTY')
   @ApiOperation({ summary: 'Auto-seed standard NBA/NAAC Program Outcomes into database' })
-  async seedPos(@CurrentTenant() tenant: Tenant, @CurrentUser() user: any, @Param('programId') programId: string) {
-    return this.obeService.seedStandardPosForProgram(this.getTenantId(tenant, user), programId);
+  async seedPos(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: any,
+    @Param('programId') programId: string,
+    @Query('force') force?: string,
+  ) {
+    return this.obeService.seedStandardPosForProgram(
+      this.getTenantId(tenant, user),
+      programId,
+      force === 'true' || force === '1',
+    );
   }
 
   @Get('matrix/:subjectId')

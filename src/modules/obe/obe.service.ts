@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
-export const STANDARD_PROGRAM_OUTCOMES = [
+export const STANDARD_ENGINEERING_OUTCOMES = [
   { code: 'PO1', title: 'Engineering Knowledge', description: 'Apply mathematics, natural sciences, and engineering fundamentals to solve complex engineering problems.' },
   { code: 'PO2', title: 'Problem Analysis', description: 'Identify, formulate, review research literature, and analyze complex engineering problems reaching substantiated conclusions.' },
   { code: 'PO3', title: 'Design & Development', description: 'Design solutions for complex problems and design system components or processes that meet specified public and safety needs.' },
@@ -17,6 +17,69 @@ export const STANDARD_PROGRAM_OUTCOMES = [
   { code: 'PSO1', title: 'Core Technical Competency', description: 'Formulate algorithms, data models, and scalable architectures for production computing environments.' },
   { code: 'PSO2', title: 'Applied Innovation & Cloud Systems', description: 'Apply modern cloud platforms, distributed systems, and intelligent tooling to deliver real-world software solutions.' }
 ];
+
+export const STANDARD_MANAGEMENT_OUTCOMES = [
+  { code: 'PO1', title: 'Business Domain Knowledge', description: 'Apply fundamental concepts, principles, and theories of management, economics, finance, marketing, and organizational dynamics to solve enterprise challenges.' },
+  { code: 'PO2', title: 'Critical Thinking & Business Analytics', description: 'Evaluate complex business scenarios and formulate data-driven decisions using quantitative methods, business intelligence, and analytical acumen.' },
+  { code: 'PO3', title: 'Leadership & Team Dynamics', description: 'Demonstrate collaborative competencies, emotional intelligence, and leadership agility in managing multi-disciplinary and culturally diverse teams.' },
+  { code: 'PO4', title: 'Strategic & Global Perspective', description: 'Analyze changing socio-economic environments and formulate competitive business strategies across domestic and international markets.' },
+  { code: 'PO5', title: 'Business Communication & Negotiation', description: 'Communicate complex managerial concepts persuasively through professional corporate reports, executive presentations, and cross-functional negotiations.' },
+  { code: 'PO6', title: 'Ethics, Governance & CSR', description: 'Practice ethical decision-making, adhere to corporate governance principles, and champion social responsibility and environmental sustainability in business.' },
+  { code: 'PO7', title: 'Innovation & Entrepreneurship', description: 'Identify emerging market opportunities, conceptualize scalable business models, and foster corporate intrapreneurship and new venture creation.' },
+  { code: 'PO8', title: 'Life-long Learning & Executive Agility', description: 'Commit to continuous professional development, executive learning, and adaptability in rapidly evolving global industry landscapes.' },
+  { code: 'PSO1', title: 'Financial & Strategic Acumen', description: 'Formulate capital budgeting decisions, corporate valuations, investment portfolios, risk hedges, and regulatory compliance strategies.' },
+  { code: 'PSO2', title: 'Digital Transformation & Supply Chain Operations', description: 'Leverage enterprise cloud ecosystems (ERP/CRM), digital marketing, and lean logistics to optimize end-to-end organizational operations.' }
+];
+
+export const STANDARD_PHARMACY_OUTCOMES = [
+  { code: 'PO1', title: 'Pharmacy Knowledge', description: 'Possess knowledge and comprehension of core pharmaceutical sciences, pharmacology, medicinal chemistry, and pharmaceutics.' },
+  { code: 'PO2', title: 'Planning Abilities & Formulation Design', description: 'Design, formulate, and manufacture drug delivery systems meeting quality and regulatory specifications.' },
+  { code: 'PO3', title: 'Problem Analysis', description: 'Utilize analytical thinking to evaluate dosage calculations, drug incompatibilities, and drug interactions.' },
+  { code: 'PO4', title: 'Modern Tool Usage', description: 'Select and apply modern analytical instrumentation (HPLC, GC-MS, spectroscopy) for pharmaceutical quality testing.' },
+  { code: 'PO5', title: 'Leadership & Teamwork', description: 'Demonstrate team leadership in pharmacy operations, clinical trial teams, and industrial production units.' },
+  { code: 'PO6', title: 'Professional Identity', description: 'Understand, analyze, and communicate the value of the pharmacy profession in healthcare delivery systems.' },
+  { code: 'PO7', title: 'Pharmaceutical Ethics', description: 'Honor human dignity and apply ethical principles in dispensing, clinical research, and pharmacy practice.' },
+  { code: 'PO8', title: 'Communication Skills', description: 'Counsel patients and liaise with healthcare professionals regarding drug regimens and therapeutic outcomes.' },
+  { code: 'PO9', title: 'The Pharmacist and Society', description: 'Apply contextual reasoning to assess public health issues, pharmacovigilance, and patient safety.' },
+  { code: 'PO10', title: 'Environment & Sustainability', description: 'Understand the impact of pharmaceutical manufacturing waste and practice green chemistry principles.' },
+  { code: 'PO11', title: 'Life-long Learning', description: 'Keep abreast of advances in clinical therapeutics, biopharmaceutics, and global regulatory compliance.' },
+  { code: 'PSO1', title: 'Hospital & Clinical Pharmacy Care', description: 'Deliver evidence-based clinical pharmacy care, pharmacotherapy reviews, and therapeutic drug monitoring.' },
+  { code: 'PSO2', title: 'Drug Regulatory Affairs & Industrial QC', description: 'Prepare regulatory dossiers (CTD/eCTD) and oversee cGMP compliance in industrial formulation units.' }
+];
+
+export const STANDARD_GENERAL_OUTCOMES = [
+  { code: 'PO1', title: 'Disciplinary Knowledge', description: 'Demonstrate comprehensive knowledge and coherent understanding of the chosen academic discipline.' },
+  { code: 'PO2', title: 'Critical Thinking & Inquiry', description: 'Apply critical evaluation, rational skepticism, and evidence-based argument to complex issues.' },
+  { code: 'PO3', title: 'Analytical & Quantitative Reasoning', description: 'Interpret empirical data, scientific literature, and quantitative trends to substantiate conclusions.' },
+  { code: 'PO4', title: 'Digital Literacy & Communication', description: 'Present complex information effectively across digital media, formal reports, and public discourse.' },
+  { code: 'PO5', title: 'Ethics & Social Values', description: 'Uphold integrity, cultural empathy, and civic responsibility in scholarly and community endeavors.' },
+  { code: 'PO6', title: 'Self-Directed & Life-long Learning', description: 'Demonstrate the capacity for independent research and lifelong intellectual development.' },
+  { code: 'PSO1', title: 'Applied Domain Investigation', description: 'Execute rigorous domain-specific research methodologies to address societal and market needs.' },
+  { code: 'PSO2', title: 'Professional Practical Skill', description: 'Apply practical skills, specialized software, and professional practices for career readiness.' }
+];
+
+export const STANDARD_PROGRAM_OUTCOMES = STANDARD_ENGINEERING_OUTCOMES;
+
+export function getStandardOutcomesForProgram(program?: {
+  code?: string;
+  name?: string;
+  type?: string;
+  department?: { code?: string; name?: string };
+}) {
+  if (!program) return STANDARD_ENGINEERING_OUTCOMES;
+  const text = `${program.code || ''} ${program.name || ''} ${program.type || ''} ${program.department?.name || ''} ${program.department?.code || ''}`.toUpperCase();
+
+  if (text.includes('MBA') || text.includes('PGDM') || text.includes('MANAGEMENT') || text.includes('BBA') || text.includes('BUSINESS')) {
+    return STANDARD_MANAGEMENT_OUTCOMES;
+  }
+  if (text.includes('PHARM') || text.includes('PHARMA') || text.includes('CLINICAL PHARM')) {
+    return STANDARD_PHARMACY_OUTCOMES;
+  }
+  if (text.includes('B.COM') || text.includes('BCOM') || text.includes('M.COM') || text.includes('MCOM') || text.includes('B.A') || text.includes('ARTS') || text.includes('COMMERCE')) {
+    return STANDARD_GENERAL_OUTCOMES;
+  }
+  return STANDARD_ENGINEERING_OUTCOMES;
+}
 
 @Injectable()
 export class ObeService {
@@ -58,13 +121,26 @@ export class ObeService {
     });
   }
 
-  async seedStandardPosForProgram(tenantId: string, programId: string) {
+  async seedStandardPosForProgram(tenantId: string, programId: string, force: boolean = false) {
+    const program = await this.prisma.program.findFirst({
+      where: { id: programId, tenantId },
+      include: { department: true },
+    });
+    if (!program) return { seeded: 0, message: 'Program not found in this institution.' };
+
     const existingCount = await this.prisma.programOutcome.count({
       where: { tenantId, programId },
     });
-    if (existingCount > 0) return { seeded: 0, message: 'Program outcomes already exist.' };
+    if (existingCount > 0 && !force) return { seeded: 0, message: 'Program outcomes already exist.' };
 
-    const data = STANDARD_PROGRAM_OUTCOMES.map((po) => ({
+    if (force && existingCount > 0) {
+      await this.prisma.programOutcome.deleteMany({
+        where: { tenantId, programId },
+      });
+    }
+
+    const template = getStandardOutcomesForProgram(program);
+    const data = template.map((po) => ({
       tenantId,
       programId,
       code: po.code,
@@ -77,7 +153,7 @@ export class ObeService {
       skipDuplicates: true,
     });
 
-    return { seeded: data.length, message: `${data.length} standard outcomes provisioned into database.` };
+    return { seeded: data.length, message: `${data.length} standard accredited outcomes provisioned for ${program.name}.` };
   }
 
   async findPos(tenantId: string, programId?: string) {
