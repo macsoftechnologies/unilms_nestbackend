@@ -345,41 +345,6 @@ export class AuthService {
   }
 
   async getUsers(tenantId: string) {
-    // Delete any stale test IT and HR accounts as requested for clean testing slate
-    try {
-      const staleUsers = await this.prisma.user.findMany({
-        where: {
-          tenantId,
-          OR: [
-            { email: { in: ['it@lms.com', 'hr@lms.com', 'it.admin@lms.com'] } },
-            { employeeCode: { in: ['IT-001', 'HR-001'] } },
-          ],
-        },
-      });
-      for (const u of staleUsers) {
-        await this.prisma.platformSetting.deleteMany({
-          where: { key: { contains: u.id } },
-        });
-        await this.prisma.staffProfile.deleteMany({
-          where: { userId: u.id },
-        });
-        await this.prisma.user.delete({
-          where: { id: u.id },
-        });
-      }
-      await this.prisma.staffProfile.deleteMany({
-        where: {
-          tenantId,
-          OR: [
-            { email: { in: ['it@lms.com', 'hr@lms.com', 'it.admin@lms.com'] } },
-            { employeeCode: { in: ['IT-001', 'HR-001'] } },
-          ],
-        },
-      });
-    } catch (e) {
-      // Ignore if already deleted
-    }
-
     await this.ensureAllInstitutionalUsers(tenantId);
 
     const [users, rbacSettings] = await Promise.all([
