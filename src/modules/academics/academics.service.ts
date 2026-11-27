@@ -69,6 +69,9 @@ export class AcademicsService {
       include: {
         department: true,
         cohorts: true,
+        programOutcomes: {
+          orderBy: { code: 'asc' },
+        },
       },
       orderBy: { code: 'asc' },
     });
