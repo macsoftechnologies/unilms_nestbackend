@@ -405,47 +405,6 @@ export class AuthService {
         },
       });
     }
-
-    // 4. Ensure IT Administrator user exists
-    const itUser = await this.prisma.user.findFirst({
-      where: {
-        tenantId,
-        OR: [
-          { email: 'it@lms.com' },
-          { email: 'it.admin@lms.com' },
-          { employeeCode: 'IT-001' },
-        ],
-      },
-    });
-
-    if (!itUser) {
-      const itHash = await bcrypt.hash('password123', 10);
-      const newItUser = await this.prisma.user.create({
-        data: {
-          tenantId,
-          role: Role.CAMPUS_ADMIN,
-          name: 'Kiran Kumar (IT Admin)',
-          email: 'it@lms.com',
-          phone: '9845099880',
-          passwordHash: itHash,
-          employeeCode: 'IT-001',
-          designation: 'IT Systems Administrator',
-          status: 'active',
-        },
-      });
-
-      const settingKey = `${tenantId}:user_access_group:${newItUser.id}`;
-      await this.prisma.platformSetting.upsert({
-        where: { key: settingKey },
-        create: {
-          key: settingKey,
-          value: ['Admin / College Administrator', 'System Settings & Security'],
-        },
-        update: {
-          value: ['Admin / College Administrator', 'System Settings & Security'],
-        },
-      });
-    }
   }
 
   async getUsers(tenantId: string) {
