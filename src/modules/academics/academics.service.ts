@@ -302,6 +302,34 @@ export class AcademicsService {
   }
 
   async createCohort(tenantId: string, dto: any) {
+    if (dto.programId && dto.academicYearId) {
+      const existing = await this.prisma.cohort.findFirst({
+        where: {
+          tenantId,
+          programId: dto.programId,
+          academicYearId: dto.academicYearId,
+        },
+        include: { program: true },
+      });
+      if (existing) {
+        throw new ConflictException(
+          `A batch for ${existing.program?.name || 'this program'} already exists for the selected academic year ("${existing.name}"). To create more class divisions, please add sections (e.g. Section B, Section C) to this existing batch instead of creating a duplicate cohort with duplicate Section As.`,
+        );
+      }
+    }
+
+    if (dto.name) {
+      const existingName = await this.prisma.cohort.findFirst({
+        where: {
+          tenantId,
+          name: dto.name.trim(),
+        },
+      });
+      if (existingName) {
+        throw new ConflictException(`A batch named "${dto.name.trim()}" already exists. Please choose a unique batch name.`);
+      }
+    }
+
     return this.prisma.cohort.create({
       data: {
         tenantId,
