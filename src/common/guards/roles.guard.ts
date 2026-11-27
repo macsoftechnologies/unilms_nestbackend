@@ -34,14 +34,18 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('User authentication or role missing from session context.');
     }
 
-    const userRole = String(user.role).toUpperCase().replace(/-/g, '_');
+    let userRole = String(user.role).toUpperCase().replace(/-/g, '_');
+    if (userRole === 'ADMIN') userRole = 'CAMPUS_ADMIN';
 
-    // Super Admin has global override capability
-    if (userRole === 'SUPER_ADMIN') {
+    // Super Admin or Organization Administrator has global override capability
+    if (userRole === 'SUPER_ADMIN' || userRole === 'CAMPUS_ADMIN' || Boolean(user.isOrgAdmin)) {
       return true;
     }
 
-    const normalizedRequired = requiredRoles.map((r) => String(r).toUpperCase().replace(/-/g, '_'));
+    const normalizedRequired = requiredRoles.map((r) => {
+      const norm = String(r).toUpperCase().replace(/-/g, '_');
+      return norm === 'ADMIN' ? 'CAMPUS_ADMIN' : norm;
+    });
 
     const hasRole = normalizedRequired.includes(userRole);
     if (!hasRole) {
